@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create a Beach-Tag | Beach Self-Grading</title>
+<meta name="description" content="Make a Beach Self-Grading tag for your card and download it as a JPG.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Site colors, sampled from beachselfgrading.com. Adjust here. */
+  :root {
+    --bg: #9c9285;
+    --panel: #f7f2ea;
+    --ink: #1f1c19;
+    --muted: #5e574f;
+    --line: #d8d0c4;
+    --accent: #1f1c19;
+    --accent-ink: #f7f2ea;
+    --heading: #f7f2ea;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .top {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .top a {
+    color: var(--heading);
+    text-decoration: none;
+    font-family: Oswald, Arial, sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .top a:hover, .top a:focus-visible { text-decoration: underline; }
+
+  .site-name { font-size: 20px; font-weight: 700 !important; text-transform: uppercase; }
+  .back { font-size: 15px; }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 16px 40px;
+  }
+
+  h1 {
+    font-family: Oswald, Arial, sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--heading);
+    font-size: clamp(32px, 7vw, 56px);
+    line-height: 1;
+    margin: 8px 0 20px;
+  }
+
+  .card {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .preview canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+    background: #ddd5c9;
+  }
+
+  .preview-note {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 8px 0 0;
+    text-align: center;
+  }
+
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 20px;
+    margin-top: 16px;
+  }
+
+  .col h2 {
+    font-family: Oswald, Arial, sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 8px 0 4px;
+  }
+
+  label {
+    display: block;
+    font-size: 14px;
+    margin: 10px 0;
+  }
+
+  input[type="text"] {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 11px 12px;
+    font-size: 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+  }
+
+  input[type="text"]::placeholder { color: #a39a8f; }
+
+  input[type="text"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 16px 0 0;
+  }
+
+  legend { font-size: 14px; padding: 0; }
+
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .swatch { position: relative; margin: 0; }
+
+  .swatch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+  }
+
+  .swatch span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 8px 8px;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .swatch span::before {
+    content: "";
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--dot);
+    border: 1px solid rgba(0,0,0,0.25);
+  }
+
+  .swatch input:checked + span { border-color: var(--accent); font-weight: bold; }
+  .swatch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .actions {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #downloadBtn {
+    width: 100%;
+    max-width: 360px;
+    padding: 14px 18px;
+    font-family: Oswald, Arial, sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  #downloadBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #downloadBtn:focus-visible { outline: 3px solid var(--bg); outline-offset: 2px; }
+
+  #status { min-height: 18px; font-size: 13px; color: var(--muted); margin: 0; }
+
+  footer {
+    text-align: center;
+    margin-top: 28px;
+  }
+
+  footer a {
+    color: var(--heading);
+    font-family: Oswald, Arial, sans-serif;
+    font-weight: 700;
+    font-size: clamp(22px, 5vw, 32px);
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  footer a:hover, footer a:focus-visible { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    .top { padding: 10px 12px 4px; }
+    main { padding: 0 12px 32px; }
+    h1 { font-size: 26px; margin: 4px 0 10px; }
+    .card { padding: 10px; }
+    .fields { grid-template-columns: 1fr; margin-top: 8px; }
+    /* Keep the preview in view while typing on phones */
+    .preview {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--panel);
+      margin: -10px -10px 0;
+      padding: 10px 10px 6px;
+      border-radius: 10px 10px 0 0;
+    }
+    .back-text-long { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="site-name" href="https://beachselfgrading.com">Beach Self-Grading</a>
+  <a class="back" href="https://beachselfgrading.com">&larr; Back<span class="back-text-long"> to site</span></a>
+</header>
+
+<main>
+  <h1>Create your Beach-Tag</h1>
+
+  <div class="card">
+    <div class="preview">
+      <canvas id="canvas" width="5600" height="1600" aria-label="Preview of your Beach-Tag" role="img"></canvas>
+      <p class="preview-note">The preview updates as you type.</p>
+    </div>
+
+    <div class="fields">
+      <div class="col">
+        <h2>Left side</h2>
+        <label>Year / Model
+          <input id="line1" type="text" maxlength="30" placeholder="2025 BOWMAN U" autocomplete="off">
+        </label>
+        <label>Player Name
+          <input id="line2" type="text" maxlength="30" placeholder="BRYCE YOUNG" autocomplete="off">
+        </label>
+        <label>Card Attributes
+          <input id="line3" type="text" maxlength="25" placeholder="(AUTOGRAPH)(RC)" autocomplete="off">
+        </label>
+      </div>
+      <div class="col">
+        <h2>Right side</h2>
+        <label>Card Number
+          <input id="line4" type="text" maxlength="9" placeholder="99 / 99" autocomplete="off">
+        </label>
+        <label>Card Grade
+          <input id="line5" type="text" maxlength="11" placeholder="MINT 10" autocomplete="off">
+        </label>
+        <label>Autograph Grade
+          <input id="line6" type="text" maxlength="11" placeholder="AUTO 10" autocomplete="off">
+        </label>
+      </div>
+    </div>
+
+    <fieldset>
+      <legend>Frame Color</legend>
+      <div class="swatches">
+        <label class="swatch" style="--dot:#c8242b"><input type="radio" name="frame" value="red" checked><span>Red</span></label>
+        <label class="swatch" style="--dot:#1a1a1a"><input type="radio" name="frame" value="black"><span>Black</span></label>
+        <label class="swatch" style="--dot:#0033ff"><input type="radio" name="frame" value="blue"><span>Blue</span></label>
+        <label class="swatch" style="--dot:#f2c519"><input type="radio" name="frame" value="yellow"><span>Yellow</span></label>
+        <label class="swatch" style="--dot:#2f8f46"><input type="radio" name="frame" value="green"><span>Green</span></label>
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button id="downloadBtn" type="button" disabled>Download .JPG</button>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://studiowetware.com">A Studio Wetware Project.</a>
+  </footer>
+</main>
+
+<script>
+(() => {
+  // Paste the Apps Script web app URL here (ends in /exec). Leave empty to turn logging off.
+  const LOG_URL = "";
+
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = 5600;
+  canvas.height = 1600;
+
+  const fields = {
+    line1: document.getElementById("line1"),
+    line2: document.getElementById("line2"),
+    line3: document.getElementById("line3"),
+    line4: document.getElementById("line4"),
+    line5: document.getElementById("line5"),
+    line6: document.getElementById("line6"),
+  };
+
+  const downloadBtn = document.getElementById("downloadBtn");
+  const statusEl = document.getElementById("status");
+  const frameInputs = document.querySelectorAll('input[name="frame"]');
+
+  // Frame images sit next to this page in the repo.
+  const FRAME_IMAGES = {
+    red: "IMG_3555.JPG",
+    black: "IMG_3554.JPG",
+    blue: "IMG_3551.JPG",
+    yellow: "IMG_3552.JPG",
+    green: "IMG_3553.JPG",
+  };
+
+  const frameCache = {};
+  let renderToken = 0;
+  let ready = false;
+  let lastLoggedKey = null;
+
+  function currentFrame() {
+    const checked = document.querySelector('input[name="frame"]:checked');
+    return checked ? checked.value : "red";
+  }
+
+  function loadFrameImage(key) {
+    if (!frameCache[key]) {
+      frameCache[key] = new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+          delete frameCache[key];
+          reject(new Error("Frame image failed to load"));
+        };
+        img.src = FRAME_IMAGES[key];
+      });
+    }
+    return frameCache[key];
+  }
+
+  function drawText(text, x, y, { size = 48, color = "#000000", align = "left" } = {}) {
+    ctx.save();
+    ctx.font = `${size}px Arial`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 2;
+    ctx.fillText(text || "", x, y);
+    ctx.restore();
+  }
+
+  async function generate() {
+    const token = ++renderToken;
+    try {
+      const frame = await loadFrameImage(currentFrame());
+      if (token !== renderToken) return; // a newer render started
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+
+      drawText(fields.line1.value, 300, 425,  { size: 300, align: "left" });
+      drawText(fields.line2.value, 300, 775,  { size: 300, align: "left" });
+      drawText(fields.line3.value, 300, 1125, { size: 300, align: "left" });
+
+      drawText(fields.line4.value, 5350, 425,  { size: 300, align: "right" });
+      drawText(fields.line5.value, 5350, 775,  { size: 300, align: "right" });
+      drawText(fields.line6.value, 5350, 1125, { size: 300, align: "right" });
+
+      ready = true;
+      downloadBtn.disabled = false;
+      statusEl.textContent = "";
+    } catch (err) {
+      console.error(err);
+      ready = false;
+      downloadBtn.disabled = true;
+      statusEl.textContent = "The frame image didn't load. Check your connection and try again.";
+    }
+  }
+
+  let debounceId = null;
+  function scheduleGenerate() {
+    clearTimeout(debounceId);
+    debounceId = setTimeout(generate, 120);
+  }
+
+  function makeThumbnail() {
+    const w = 400;
+    const h = Math.round(w * canvas.height / canvas.width);
+    const thumb = document.createElement("canvas");
+    thumb.width = w;
+    thumb.height = h;
+    thumb.getContext("2d").drawImage(canvas, 0, 0, w, h);
+    return thumb.toDataURL("image/jpeg", 0.75);
+  }
+
+  function logDownload() {
+    if (!LOG_URL) return;
+    try {
+      const entry = {
+        frame: currentFrame(),
+        line1: fields.line1.value.trim(),
+        line2: fields.line2.value.trim(),
+        line3: fields.line3.value.trim(),
+        line4: fields.line4.value.trim(),
+        line5: fields.line5.value.trim(),
+        line6: fields.line6.value.trim(),
+      };
+
+      // Skip repeat downloads of the same tag in one visit.
+      const key = JSON.stringify(entry);
+      if (key === lastLoggedKey) return;
+      lastLoggedKey = key;
+
+      let timeZone = "";
+      try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+
+      const payload = Object.assign(entry, {
+        language: navigator.language || "",
+        timeZone,
+        thumbnail: makeThumbnail(),
+      });
+
+      // text/plain keeps this a simple request that Apps Script accepts from any site.
+      fetch(LOG_URL, {
+        method: "POST",
+        mode: "no-cors",
+        keepalive: true,
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    } catch (e) {
+      // Logging never blocks the download.
+    }
+  }
+
+  function download() {
+    if (!ready) return;
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        statusEl.textContent = "Something went wrong making the file. Please try again.";
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Beach-tag.jpg";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      statusEl.textContent = "Downloaded.";
+    }, "image/jpeg", 0.95);
+
+    logDownload();
+  }
+
+  downloadBtn.addEventListener("click", download);
+  frameInputs.forEach(el => el.addEventListener("change", generate));
+  Object.values(fields).forEach(el => el.addEventListener("input", scheduleGenerate));
+
+  generate();
+})();
+</script>
+</body>
+</html>
