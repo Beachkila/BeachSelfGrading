@@ -504,6 +504,26 @@
     ctx.restore();
   }
 
+  // Shrinks all six lines together when a row's left and right text would overlap,
+  // so long entries stay readable and the tag keeps one consistent text size.
+  const TEXT_SIZE = 300;
+  const TEXT_LEFT = 300;
+  const TEXT_RIGHT = 5350;
+  const MIN_GAP = 120;
+
+  function fitTextSize() {
+    ctx.save();
+    ctx.font = `${TEXT_SIZE}px Arial`;
+    const available = TEXT_RIGHT - TEXT_LEFT - MIN_GAP;
+    let scale = 1;
+    [["line1", "line4"], ["line2", "line5"], ["line3", "line6"]].forEach(([l, r]) => {
+      const width = ctx.measureText(fields[l].value || "").width + ctx.measureText(fields[r].value || "").width;
+      if (width > available) scale = Math.min(scale, available / width);
+    });
+    ctx.restore();
+    return Math.floor(TEXT_SIZE * scale);
+  }
+
   async function generate() {
     const token = ++renderToken;
     try {
@@ -513,13 +533,15 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
 
-      drawText(fields.line1.value, 300, 425,  { size: 300, align: "left" });
-      drawText(fields.line2.value, 300, 775,  { size: 300, align: "left" });
-      drawText(fields.line3.value, 300, 1125, { size: 300, align: "left" });
+      const size = fitTextSize();
 
-      drawText(fields.line4.value, 5350, 425,  { size: 300, align: "right" });
-      drawText(fields.line5.value, 5350, 775,  { size: 300, align: "right" });
-      drawText(fields.line6.value, 5350, 1125, { size: 300, align: "right" });
+      drawText(fields.line1.value, 300, 425,  { size, align: "left" });
+      drawText(fields.line2.value, 300, 775,  { size, align: "left" });
+      drawText(fields.line3.value, 300, 1125, { size, align: "left" });
+
+      drawText(fields.line4.value, 5350, 425,  { size, align: "right" });
+      drawText(fields.line5.value, 5350, 775,  { size, align: "right" });
+      drawText(fields.line6.value, 5350, 1125, { size, align: "right" });
 
       ready = true;
       downloadBtn.disabled = false;
