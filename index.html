@@ -36,17 +36,17 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Header matches beachselfgrading.com: dark band, round logo, S.We.T.A. strip as the nav */
   .site-header {
-    background: #1a1716;
+    background: #161412;
   }
 
   .site-header .inner {
     max-width: 1800px;
     margin: 0 auto;
-    padding: 20px 40px;
+    padding: 16px 40px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 24px;
   }
 
@@ -54,96 +54,21 @@
 
   .logo img {
     display: block;
-    width: 76px;
-    height: auto;
+    width: 86px;
+    height: 86px;
+    border-radius: 50%;
   }
 
-  .nav ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px 40px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .site-header .swt-strip {
+    flex: 1;
+    min-width: 0;
   }
 
-  .nav a {
-    color: var(--heading);
-    text-decoration: none;
-    font-family: Oswald, Arial, sans-serif;
-    font-weight: 500;
-    font-size: 22px;
-    text-transform: uppercase;
-    white-space: nowrap;
+  @media (max-width: 700px) {
+    .site-header .inner { padding: 12px 16px; gap: 12px; flex-direction: column; align-items: stretch; }
+    .logo { align-self: flex-start; }
+    .logo img { width: 56px; height: 56px; }
   }
-
-  .nav a:hover, .nav a:focus-visible { text-decoration: underline; }
-
-  .nav a.subscribe {
-    display: inline-block;
-    background: var(--panel);
-    color: var(--ink);
-    padding: 14px 28px;
-    border-radius: 999px;
-  }
-
-  .menu-toggle,
-  .menu-close {
-    display: none;
-    background: none;
-    border: 0;
-    padding: 10px;
-    margin: -10px;
-    cursor: pointer;
-    color: var(--heading);
-  }
-
-  .menu-toggle svg,
-  .menu-close svg { display: block; width: 28px; height: 28px; }
-
-  @media (max-width: 1300px) {
-    .nav ul { gap: 8px 24px; }
-    .nav a { font-size: 18px; }
-  }
-
-  @media (max-width: 1000px) {
-    .site-header .inner { padding: 12px 16px; }
-    .logo img { width: 48px; }
-    .menu-toggle { display: block; }
-
-    /* Full-screen menu panel */
-    .nav {
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      background: #1a1716;
-      display: flex;
-      flex-direction: column;
-      padding: 12px 16px 32px;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.2s ease, visibility 0.2s;
-      overflow-y: auto;
-    }
-    .nav.open { opacity: 1; visibility: visible; }
-
-    .menu-close { display: block; align-self: flex-end; margin: 0 -10px 0 0; }
-
-    .nav ul {
-      flex: 1;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 26px;
-      flex-wrap: nowrap;
-    }
-    .nav a { font-size: 30px; font-weight: 500; }
-    .nav a.subscribe { margin-top: 10px; padding: 14px 36px; font-size: 24px; }
-  }
-
-  body.menu-open { overflow: hidden; }
 
   main {
     max-width: 960px;
@@ -340,26 +265,12 @@
 <header class="site-header">
   <div class="inner">
     <a class="logo" href="https://beachselfgrading.com/">
-      <img src="tag-icon.png" alt="Beach Self-Grading home">
+      <img src="https://beachselfgrading.com/wp-content/uploads/2026/09/magiceraser_260923_145356.png" alt="Beach Self-Grading home">
     </a>
-    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-    </button>
-    <nav class="nav" id="site-nav" aria-label="Beach Self-Grading">
-      <button class="menu-close" type="button" aria-label="Close menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-      <ul>
-        <li><a href="https://beachselfgrading.com/gallery/">Gallery</a></li>
-        <li><a href="https://beachselfgrading.com/templates/">Printable Templates</a></li>
-        <li><a href="https://beachselfgrading.com/what-are-beach-tags/">What are Beach-Tags?</a></li>
-        <li><a href="https://studiowetware.com">StudioWetware.com</a></li>
-        <li><a href="https://beachselfgrading.com/contact-me/">Tip / Contact</a></li>
-        <li><a class="subscribe" href="https://beachselfgrading.com/">Subscribe</a></li>
-      </ul>
-    </nav>
+    <div class="swt-strip" data-stop="create" data-contained></div>
   </div>
 </header>
+<script src="https://beachkila.github.io/SiteMap/strip.js" defer></script>
 
 <main>
   <h1>Create your Beach-Tag</h1>
@@ -421,21 +332,6 @@
 
 <script>
 (() => {
-  const menuToggle = document.querySelector(".menu-toggle");
-  const menuClose = document.querySelector(".menu-close");
-  const nav = document.getElementById("site-nav");
-  function setMenu(open) {
-    nav.classList.toggle("open", open);
-    document.body.classList.toggle("menu-open", open);
-    menuToggle.setAttribute("aria-expanded", String(open));
-    (open ? menuClose : menuToggle).focus();
-  }
-  menuToggle.addEventListener("click", () => setMenu(true));
-  menuClose.addEventListener("click", () => setMenu(false));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && nav.classList.contains("open")) setMenu(false);
-  });
-
   // Paste the Apps Script web app URL here (ends in /exec). Leave empty to turn logging off.
   const LOG_URL = "https://script.google.com/macros/s/AKfycbxNZUXl5coLk65ZyorhNfLWH1ve0mpQ89Bd9R-KrhulOBWncMgfgftdVYyjMI_aNV8/exec";
 
