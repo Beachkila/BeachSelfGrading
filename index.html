@@ -272,6 +272,50 @@
       border-radius: 10px 10px 0 0;
     }
   }
+  .pickers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 20px;
+    margin: 8px 0 4px;
+  }
+
+  select {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 11px 12px;
+    font-size: 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+  }
+
+  select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .custom input[type="color"] {
+    width: 44px;
+    height: 38px;
+    padding: 2px;
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 640px) {
+    .pickers { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -293,6 +337,21 @@
     <div class="preview">
       <canvas id="canvas" width="5600" height="1600" aria-label="Preview of your Beach-Tag" role="img"></canvas>
       <p class="preview-note">The preview updates as you type.</p>
+    </div>
+
+    <div class="pickers">
+      <label>Layout
+        <select id="layout"></select>
+      </label>
+      <label>Color Style
+        <select id="split">
+          <option value="none">Single color</option>
+          <option value="halves">Halves</option>
+          <option value="topbottom">Top / bottom</option>
+          <option value="pinstripe">Inner pinstripe</option>
+          <option value="corners">Corners</option>
+        </select>
+      </label>
     </div>
 
     <div class="fields">
@@ -324,17 +383,24 @@
 
     <fieldset>
       <legend>Frame Color</legend>
+      <div class="swatches" id="swatches1"></div>
+    </fieldset>
+
+    <fieldset id="color2Set" hidden>
+      <legend>Second Color</legend>
+      <div class="swatches" id="swatches2"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Nameplate</legend>
       <div class="swatches">
-        <label class="swatch" style="--dot:#c8242b"><input type="radio" name="frame" value="red" checked><span>Red</span></label>
-        <label class="swatch" style="--dot:#1a1a1a"><input type="radio" name="frame" value="black"><span>Black</span></label>
-        <label class="swatch" style="--dot:#0033ff"><input type="radio" name="frame" value="blue"><span>Blue</span></label>
-        <label class="swatch" style="--dot:#f2c519"><input type="radio" name="frame" value="yellow"><span>Yellow</span></label>
-        <label class="swatch" style="--dot:#2f8f46"><input type="radio" name="frame" value="green"><span>Green</span></label>
+        <label class="swatch" style="--dot:#ffffff"><input type="radio" name="plate" value="white" checked><span>White</span></label>
+        <label class="swatch" style="--dot:#111111"><input type="radio" name="plate" value="black"><span>Black</span></label>
       </div>
     </fieldset>
 
     <div class="actions">
-      <button id="downloadBtn" type="button" disabled>Download .JPG</button>
+      <button id="downloadBtn" type="button">Download .JPG</button>
       <p id="status" role="status" aria-live="polite"></p>
     </div>
   </div>
@@ -351,6 +417,21 @@
   // Paste the Apps Script web app URL here (ends in /exec). Leave empty to turn logging off.
   const LOG_URL = "https://script.google.com/macros/s/AKfycbxNZUXl5coLk65ZyorhNfLWH1ve0mpQ89Bd9R-KrhulOBWncMgfgftdVYyjMI_aNV8/exec";
 
+  // Every layout is drawn in a 560 x 160 unit space and scaled up 10x,
+  // so the downloaded JPG is 5600 x 1600, same as before.
+  // All layouts keep square outer corners so they cut cleanly.
+  const UW = 560, UH = 160;
+  const RED_A = "#ff0000", INK = "#111111", WHITE = "#ffffff", HAIR = "#bbbbbb";
+
+  // Same colors as the original frame images.
+  const PRESETS = [
+    ["red", "Red", "#ff0000"],
+    ["black", "Black", "#000000"],
+    ["blue", "Blue", "#0030ff"],
+    ["yellow", "Yellow", "#ffd300"],
+    ["green", "Green", "#009900"],
+  ];
+
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
   canvas.width = 5600;
@@ -365,105 +446,533 @@
     line6: document.getElementById("line6"),
   };
 
+  const layoutEl = document.getElementById("layout");
+  const splitEl = document.getElementById("split");
+  const color2Set = document.getElementById("color2Set");
   const downloadBtn = document.getElementById("downloadBtn");
   const statusEl = document.getElementById("status");
-  const frameInputs = document.querySelectorAll('input[name="frame"]');
+  const plateInputs = document.querySelectorAll('input[name="plate"]');
 
-  // Frame images sit next to this page in the repo.
-  const FRAME_IMAGES = {
-    red: "IMG_3555.JPG",
-    black: "IMG_3554.JPG",
-    blue: "IMG_3551.JPG",
-    yellow: "IMG_3552.JPG",
-    green: "IMG_3553.JPG",
-  };
-
-  const frameCache = {};
-  let renderToken = 0;
-  let ready = false;
+  const state = { c1: "#ff0000", c2: "#0030ff" };
   let lastLoggedKey = null;
 
-  function currentFrame() {
-    const checked = document.querySelector('input[name="frame"]:checked');
-    return checked ? checked.value : "red";
+  // ---------- drawing helpers ----------
+
+  function rr(c, x, y, w, h, r) {
+    const [tl, tr, br, bl] = Array.isArray(r) ? r : [r, r, r, r];
+    c.beginPath();
+    c.moveTo(x + tl, y);
+    c.lineTo(x + w - tr, y);
+    c.arcTo(x + w, y, x + w, y + tr, tr);
+    c.lineTo(x + w, y + h - br);
+    c.arcTo(x + w, y + h, x + w - br, y + h, br);
+    c.lineTo(x + bl, y + h);
+    c.arcTo(x, y + h, x, y + h - bl, bl);
+    c.lineTo(x, y + tl);
+    c.arcTo(x, y, x + tl, y, tl);
+    c.closePath();
   }
 
-  function loadFrameImage(key) {
-    if (!frameCache[key]) {
-      frameCache[key] = new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => {
-          delete frameCache[key];
-          reject(new Error("Frame image failed to load"));
-        };
-        img.src = FRAME_IMAGES[key];
-      });
-    }
-    return frameCache[key];
+  function rect(c, x, y, w, h) { c.beginPath(); c.rect(x, y, w, h); }
+
+  function poly(c, pts) {
+    c.beginPath();
+    pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+    c.closePath();
   }
 
-  function drawText(text, x, y, { size = 48, color = "#000000", align = "left" } = {}) {
-    ctx.save();
-    ctx.font = `${size}px Arial`;
-    ctx.fillStyle = color;
-    ctx.textAlign = align;
-    ctx.textBaseline = "alphabetic";
-    ctx.shadowColor = "rgba(0,0,0,0.55)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 2;
-    ctx.fillText(text || "", x, y);
-    ctx.restore();
+  function fillWith(c, color) { c.fillStyle = color; c.fill(); }
+  function strokeWith(c, color, w) { c.strokeStyle = color; c.lineWidth = w; c.stroke(); }
+
+  function setFont(c, size, bold) {
+    c.font = `${bold ? "bold " : ""}${size}px Arial, Helvetica, sans-serif`;
   }
 
-  // Shrinks all six lines together when a row's left and right text would overlap,
-  // so long entries stay readable and the tag keeps one consistent text size.
-  const TEXT_SIZE = 300;
-  const TEXT_LEFT = 300;
-  const TEXT_RIGHT = 5350;
-  const MIN_GAP = 120;
+  // One line of text that shrinks to fit maxW.
+  function T(c, text, x, y, size, align = "left", maxW = Infinity) {
+    if (!text) return;
+    setFont(c, size);
+    const w = c.measureText(text).width;
+    if (w > maxW) setFont(c, size * maxW / w);
+    c.fillStyle = INK;
+    c.textAlign = align;
+    c.textBaseline = "alphabetic";
+    c.fillText(text, x, y);
+  }
 
-  function fitTextSize() {
-    ctx.save();
-    ctx.font = `${TEXT_SIZE}px Arial`;
-    const available = TEXT_RIGHT - TEXT_LEFT - MIN_GAP;
-    let scale = 1;
-    [["line1", "line4"], ["line2", "line5"], ["line3", "line6"]].forEach(([l, r]) => {
-      const width = ctx.measureText(fields[l].value || "").width + ctx.measureText(fields[r].value || "").width;
-      if (width > available) scale = Math.min(scale, available / width);
+  // Left and right columns sharing rows. When a row's left and right text would
+  // overlap, every row shrinks together so the tag keeps one consistent text size.
+  function rows(c, L, R, lx, rx, ys, sizes, shadow = false) {
+    const gap = 12;
+    let k = 1;
+    L.forEach((lt, i) => {
+      setFont(c, sizes[i]);
+      const w = c.measureText(lt || "").width + c.measureText(R[i] || "").width;
+      const avail = rx - lx - (R[i] ? gap : 0);
+      if (w > avail) k = Math.min(k, avail / w);
     });
-    ctx.restore();
-    return Math.floor(TEXT_SIZE * scale);
+    c.save();
+    if (shadow) {
+      c.shadowColor = "rgba(0,0,0,0.55)";
+      c.shadowBlur = 10;
+      c.shadowOffsetY = 2;
+    }
+    L.forEach((lt, i) => {
+      T(c, lt, lx, ys[i], sizes[i] * k, "left");
+      T(c, R[i], rx, ys[i], sizes[i] * k, "right");
+    });
+    c.restore();
   }
 
-  async function generate() {
-    const token = ++renderToken;
-    try {
-      const frame = await loadFrameImage(currentFrame());
-      if (token !== renderToken) return; // a newer render started
+  function tracked(c, text, x, y, size, bold, spacing, colors) {
+    setFont(c, size, bold);
+    c.textAlign = "left";
+    c.textBaseline = "alphabetic";
+    let cx = x;
+    [...text].forEach((ch, i) => {
+      c.fillStyle = colors[i] || colors[0];
+      c.fillText(ch, cx, y);
+      cx += c.measureText(ch).width + spacing;
+    });
+  }
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+  function trackedWidth(c, text, size, bold, spacing) {
+    setFont(c, size, bold);
+    return [...text].reduce((s, ch) => s + c.measureText(ch).width, 0) + spacing * (text.length - 1);
+  }
 
-      const size = fitTextSize();
+  function isDark(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+    return lum < 0.12;
+  }
 
-      drawText(fields.line1.value, 300, 425,  { size, align: "left" });
-      drawText(fields.line2.value, 300, 775,  { size, align: "left" });
-      drawText(fields.line3.value, 300, 1125, { size, align: "left" });
+  // BEACH | SELF-GRADING nameplate.
+  // White plate: black border. Black plate: no border when it sits flush on a dark frame,
+  // where it takes the frame's color so it blends in.
+  function nameplate(c, x, y, w, h, o, flush = false) {
+    const dark = o.plate === "black";
+    const blend = dark && flush && isDark(o.c1) && o.split === "none";
+    const fill = blend ? o.c1 : dark ? INK : WHITE;
+    const ink = dark ? WHITE : INK;
+    const line = blend ? 0 : 1.4;
+    const half = line / 2;
+    const r = 3.6;
 
-      drawText(fields.line4.value, 5350, 425,  { size, align: "right" });
-      drawText(fields.line5.value, 5350, 775,  { size, align: "right" });
-      drawText(fields.line6.value, 5350, 1125, { size, align: "right" });
-
-      ready = true;
-      downloadBtn.disabled = false;
-      statusEl.textContent = "";
-    } catch (err) {
-      console.error(err);
-      ready = false;
-      downloadBtn.disabled = true;
-      statusEl.textContent = "The frame image didn't load. Check your connection and try again.";
+    if (flush) {
+      // rounded top corners, square bottom corners resting on the tag's bottom edge
+      const left = x + half, top = y + half, right = x + w - half, bottom = y + h - half;
+      c.beginPath();
+      c.moveTo(left, bottom);
+      c.lineTo(left, top + r);
+      c.arcTo(left, top, left + r, top, r);
+      c.lineTo(right - r, top);
+      c.arcTo(right, top, right, top + r, r);
+      c.lineTo(right, bottom);
+      c.closePath();
+    } else {
+      rr(c, x + half, y + half, w - line, h - line, r);
     }
+    fillWith(c, fill);
+    if (line) strokeWith(c, INK, line);
+    if (flush) {
+      c.fillStyle = line ? INK : fill;
+      c.fillRect(x, y + h - half, w, half + 0.2);
+    }
+
+    let bs = h * 0.514, ss = h * 0.223;
+    const bsp = () => bs * 0.11, ssp = () => ss * 0.23;
+    const gap = h * 0.137, divW = h * 0.069;
+    const total = () =>
+      trackedWidth(c, "BEACH", bs, true, bsp()) + gap * 2 + divW +
+      trackedWidth(c, "SELF-GRADING", ss, false, ssp());
+    const maxW = w * 0.86;
+    if (total() > maxW) { const k = maxW / total(); bs *= k; ss *= k; }
+
+    const mid = y + h / 2;
+    let cx = x + (w - total()) / 2;
+    tracked(c, "BEACH", cx, mid + bs * 0.36, bs, true, bsp(), [ink, ink, RED_A, ink, ink]);
+    cx += trackedWidth(c, "BEACH", bs, true, bsp()) + gap;
+    c.fillStyle = RED_A;
+    c.fillRect(cx, mid - h * 0.27, divW, h * 0.54);
+    cx += divW + gap;
+    tracked(c, "SELF-GRADING", cx, mid + ss * 0.36, ss, false, ssp(), [ink]);
+  }
+
+  // ---------- layouts ----------
+  // paint(c, color): the colored parts of the frame (painted twice for split colors).
+  // content(c, d, o): text and nameplate.
+
+  const LAYOUTS = [
+    // ----- Classic -----
+    {
+      id: "original", name: "Original", family: "Classic",
+      paint(c, k) {
+        c.fillStyle = k; c.fillRect(0, 0, UW, UH);
+        rr(c, 20.2, 15.7, 520.8, 127.7, 4); fillWith(c, WHITE);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 30, 535, [42.5, 77.5, 112.5], [30, 30, 30], true);
+        nameplate(c, 170, 123.6, 220, 36.4, o, true);
+      },
+    },
+    {
+      id: "header", name: "Header band", family: "Classic",
+      paint(c, k) {
+        rect(c, 2, 2, 556, 156); strokeWith(c, k, 4);
+        c.fillStyle = k; c.fillRect(0, 0, UW, 42);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 24, 536, [74, 106, 138], [20, 28, 20]);
+        nameplate(c, 14, 6, 230, 30, o);
+      },
+    },
+    {
+      id: "folder", name: "Folder tab", family: "Classic",
+      paint(c, k) {
+        c.fillStyle = k; c.fillRect(380, 0, 180, 48);
+        c.fillStyle = WHITE; c.fillRect(388, 6, 164, 26);
+        rect(c, 2.5, 36, 555, 121.5); fillWith(c, WHITE); strokeWith(c, k, 5);
+      },
+      content(c, d, o) {
+        T(c, [d.grade, d.auto].filter(Boolean).join(" · "), 470, 25, 17, "center", 150);
+        rows(c, [d.ym, d.name, d.attr], [d.num, "", ""], 24, 536, [70, 104, 136], [20, 28, 20]);
+        nameplate(c, 330, 118, 206, 28, o);
+      },
+    },
+    {
+      id: "swiss", name: "Swiss minimal", family: "Classic",
+      paint(c, k) {
+        rect(c, 0.5, 0.5, 559, 159); strokeWith(c, HAIR, 1);
+        c.fillStyle = k; c.fillRect(24, 96, 320, 7);
+      },
+      content(c, d, o) {
+        T(c, [d.ym, d.num].filter(Boolean).join(" · "), 24, 36, 16, "left", 330);
+        T(c, d.name, 24, 84, 40, "left", 340);
+        T(c, d.attr, 24, 124, 16, "left", 330);
+        T(c, d.gWord, 536, 40, 16, "right", 170);
+        T(c, d.gNum, 536, 112, 80, "right", 170);
+        T(c, d.auto, 536, 140, 16, "right", 170);
+        nameplate(c, 24, 131, 230, 25, o);
+      },
+    },
+
+    // ----- Outline -----
+    {
+      id: "lineart", name: "Line art", family: "Outline",
+      paint(c, k) {
+        rect(c, 4, 12, 552, 144); strokeWith(c, k, 2);
+        rect(c, 10, 18, 540, 132); strokeWith(c, k, 1);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 24, 536, [56, 90, 120], [20, 28, 20]);
+        nameplate(c, 185, 0, 190, 28, o);
+      },
+    },
+    {
+      id: "chamfer", name: "Chamfered", family: "Outline",
+      paint(c, k) {
+        rect(c, 1.5, 1.5, 557, 157); strokeWith(c, k, 3);
+        poly(c, [[30, 10], [530, 10], [550, 30], [550, 130], [530, 150], [30, 150], [10, 130], [10, 30]]);
+        strokeWith(c, k, 3);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 30, 530, [46, 78, 106], [20, 28, 20]);
+        nameplate(c, 326, 114, 200, 24, o);
+      },
+    },
+    {
+      id: "sash", name: "Corner sash", family: "Outline",
+      paint(c, k) {
+        rect(c, 1.5, 1.5, 557, 157); strokeWith(c, k, 3);
+        poly(c, [[460, 0], [510, 0], [560, 50], [560, 100]]); fillWith(c, k);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 24, 480, [42, 78, 110], [20, 28, 20]);
+        nameplate(c, 24, 122, 220, 26, o);
+      },
+    },
+    {
+      id: "arrow", name: "Arrow sign", family: "Outline",
+      paint(c, k) {
+        rect(c, 1, 1, 558, 158); strokeWith(c, k, 2);
+        poly(c, [[10, 10], [488, 10], [548, 80], [488, 150], [10, 150]]); strokeWith(c, k, 4);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 26, 466, [44, 78, 106], [20, 28, 20]);
+        nameplate(c, 26, 116, 210, 26, o);
+      },
+    },
+    {
+      id: "hang", name: "Hang tag", family: "Outline",
+      paint(c, k) {
+        rect(c, 2, 2, 556, 156); strokeWith(c, k, 4);
+        c.beginPath(); c.arc(36, 80, 17, 0, Math.PI * 2); strokeWith(c, k, 7);
+        c.beginPath(); c.arc(36, 80, 9, 0, Math.PI * 2); fillWith(c, WHITE); strokeWith(c, HAIR, 1);
+        c.save(); c.setLineDash([4, 4]);
+        c.beginPath(); c.moveTo(70, 14); c.lineTo(70, 146); strokeWith(c, k, 1.5);
+        c.restore();
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 86, 536, [44, 78, 106], [20, 28, 20]);
+        nameplate(c, 330, 118, 206, 28, o);
+      },
+    },
+
+    // ----- Badge -----
+    {
+      id: "ticket", name: "Ticket stub", family: "Badge",
+      paint(c, k) {
+        rect(c, 3, 3, 554, 154); fillWith(c, WHITE); strokeWith(c, k, 6);
+        c.save(); c.setLineDash([6, 5]);
+        c.beginPath(); c.moveTo(420, 12); c.lineTo(420, 148); strokeWith(c, k, 3);
+        c.restore();
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, "", ""], 24, 404, [40, 74, 102], [20, 28, 20]);
+        T(c, d.gWord, 488, 38, 16, "center", 110);
+        T(c, d.gNum, 488, 102, 64, "center", 120);
+        T(c, d.auto, 488, 132, 16, "center", 110);
+        nameplate(c, 20, 116, 210, 30, o);
+      },
+    },
+    {
+      id: "seal", name: "Grade seal", family: "Badge",
+      paint(c, k) {
+        rect(c, 2, 2, 556, 156); fillWith(c, WHITE); strokeWith(c, k, 4);
+        c.beginPath(); c.arc(478, 80, 68, 0, Math.PI * 2); fillWith(c, WHITE); strokeWith(c, k, 6);
+        c.beginPath(); c.arc(478, 80, 58, 0, Math.PI * 2); strokeWith(c, k, 1.5);
+      },
+      content(c, d, o) {
+        T(c, d.gWord, 478, 48, 16, "center", 84);
+        T(c, d.gNum, 478, 104, 58, "center", 92);
+        T(c, d.auto, 478, 128, 14, "center", 78);
+        rows(c, [d.ym, d.name, d.attr], [d.num, "", ""], 24, 396, [42, 78, 108], [20, 28, 20]);
+        nameplate(c, 24, 120, 220, 28, o);
+      },
+    },
+    {
+      id: "crest", name: "Center crest", family: "Badge",
+      paint(c, k) {
+        rect(c, 2, 2, 556, 156); strokeWith(c, k, 4);
+        c.beginPath();
+        c.moveTo(236, 14); c.lineTo(324, 14); c.lineTo(324, 88);
+        c.quadraticCurveTo(324, 128, 280, 148);
+        c.quadraticCurveTo(236, 128, 236, 88);
+        c.closePath();
+        fillWith(c, WHITE); strokeWith(c, k, 5);
+      },
+      content(c, d, o) {
+        T(c, d.gWord, 280, 44, 14, "center", 70);
+        T(c, d.gNum, 280, 102, 54, "center", 72);
+        rows(c, [d.ym, d.name, d.attr], ["", "", ""], 24, 226, [42, 78, 108], [20, 28, 20]);
+        T(c, d.num, 536, 42, 20, "right", 196);
+        T(c, d.auto, 536, 78, 28, "right", 196);
+        nameplate(c, 336, 120, 200, 28, o);
+      },
+    },
+    {
+      id: "ribbon", name: "Bookmark ribbon", family: "Badge",
+      paint(c, k) {
+        rect(c, 1.5, 1.5, 557, 157); strokeWith(c, k, 3);
+        poly(c, [[466, 0], [534, 0], [534, 158], [500, 136], [466, 158]]); fillWith(c, k);
+        c.fillStyle = WHITE; c.fillRect(474, 22, 52, 78);
+      },
+      content(c, d, o) {
+        T(c, d.gWord, 500, 44, 14, "center", 46);
+        T(c, d.gNum, 500, 88, 40, "center", 46);
+        rows(c, [d.ym, d.name, d.attr], [d.num, "", d.auto], 24, 452, [44, 80, 110], [20, 28, 20]);
+        nameplate(c, 24, 120, 220, 28, o);
+      },
+    },
+    {
+      id: "stamp", name: "Postage stamp", family: "Badge",
+      paint(c, k) {
+        c.fillStyle = k; c.fillRect(0, 0, UW, UH);
+        c.fillStyle = WHITE; c.fillRect(12, 12, 536, 136);
+        for (let x = 24; x < UW - 16; x += 16) {
+          c.beginPath(); c.arc(x, 0, 5, 0, Math.PI * 2); c.arc(x, UH, 5, 0, Math.PI * 2); fillWith(c, WHITE);
+        }
+        for (let y = 24; y < UH - 16; y += 16) {
+          c.beginPath(); c.arc(0, y, 5, 0, Math.PI * 2); fillWith(c, WHITE);
+          c.beginPath(); c.arc(UW, y, 5, 0, Math.PI * 2); fillWith(c, WHITE);
+        }
+        rect(c, 452, 20, 88, 80); strokeWith(c, k, 2);
+      },
+      content(c, d, o) {
+        T(c, d.gWord, 496, 48, 14, "center", 76);
+        T(c, d.gNum, 496, 90, 40, "center", 80);
+        rows(c, [d.ym, d.name, d.attr], [d.num, "", ""], 26, 440, [44, 78, 108], [20, 28, 20]);
+        T(c, d.auto, 540, 130, 16, "right", 180);
+        nameplate(c, 26, 116, 220, 26, o);
+      },
+    },
+
+    // ----- Stripes -----
+    {
+      id: "racing", name: "Racing stripes", family: "Stripes",
+      paint(c, k) {
+        rect(c, 0.5, 0.5, 559, 159); strokeWith(c, HAIR, 1);
+        c.fillStyle = k;
+        c.fillRect(0, 8, UW, 10); c.fillRect(0, 24, UW, 4);
+        c.fillRect(0, 132, UW, 4); c.fillRect(0, 142, UW, 10);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 24, 536, [60, 90, 120], [18, 26, 18]);
+        nameplate(c, 180, 2, 200, 30, o);
+      },
+    },
+    {
+      id: "checker", name: "Checkered edge", family: "Stripes",
+      paint(c, k) {
+        c.fillStyle = k;
+        for (let x = 0, i = 0; x < UW; x += 12, i++) {
+          for (let r = 0; r < 2; r++) {
+            if ((i + r) % 2 === 0) c.fillRect(x, r * 12, Math.min(12, UW - x), 12);
+          }
+        }
+        rect(c, 1.5, 1.5, 557, 157); strokeWith(c, k, 3);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 24, 536, [58, 90, 120], [20, 28, 20]);
+        nameplate(c, 180, 128, 200, 26, o);
+      },
+    },
+    {
+      id: "film", name: "Film strip", family: "Stripes",
+      paint(c, k) {
+        c.fillStyle = k; c.fillRect(0, 0, UW, 22); c.fillRect(0, 138, UW, 22);
+        c.fillStyle = WHITE;
+        for (let x = 10; x < UW; x += 24) { c.fillRect(x, 6, 12, 10); c.fillRect(x, 144, 12, 10); }
+        rect(c, 1.5, 1.5, 557, 157); strokeWith(c, k, 3);
+      },
+      content(c, d, o) {
+        rows(c, [d.ym, d.name, d.attr], [d.num, d.grade, d.auto], 24, 536, [54, 86, 116], [20, 28, 20]);
+        nameplate(c, 190, 0, 180, 26, o);
+      },
+    },
+  ];
+
+  const byId = Object.fromEntries(LAYOUTS.map(l => [l.id, l]));
+
+  function clipSplit(c, split) {
+    c.beginPath();
+    if (split === "halves") c.rect(280, 0, 280, UH);
+    else if (split === "topbottom") c.rect(0, 80, UW, 80);
+    else if (split === "pinstripe") {
+      c.rect(6, 6, 548, 148);
+      c.rect(11, 11, 538, 138);
+      c.clip("evenodd");
+      return;
+    } else if (split === "corners") {
+      [[0, 0, 90, 0, 0, 60], [UW, 0, 470, 0, UW, 60], [0, UH, 90, UH, 0, 100], [UW, UH, 470, UH, UW, 100]]
+        .forEach(([a, b, x2, y2, x3, y3]) => { c.moveTo(a, b); c.lineTo(x2, y2); c.lineTo(x3, y3); c.closePath(); });
+    }
+    c.clip();
+  }
+
+  function drawTag(c, scale, layout, d, o) {
+    c.setTransform(scale, 0, 0, scale, 0, 0);
+    c.fillStyle = WHITE;
+    c.fillRect(0, 0, UW, UH);
+    c.save(); layout.paint(c, o.c1); c.restore();
+    if (o.split !== "none") {
+      c.save(); clipSplit(c, o.split); layout.paint(c, o.c2); c.restore();
+    }
+    c.save(); layout.content(c, d, o); c.restore();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  // ---------- data ----------
+
+  function readData() {
+    const v = id => fields[id].value.trim();
+    const grade = v("line5");
+    const i = grade.lastIndexOf(" ");
+    return {
+      ym: v("line1"), name: v("line2"), attr: v("line3"),
+      num: v("line4"), grade, auto: v("line6"),
+      // big-number layouts show "MINT" small and "10" large
+      gWord: i > 0 ? grade.slice(0, i) : "",
+      gNum: i > 0 ? grade.slice(i + 1) : grade,
+    };
+  }
+
+  function currentPlate() {
+    const checked = document.querySelector('input[name="plate"]:checked');
+    return checked ? checked.value : "white";
+  }
+
+  function options() {
+    return { c1: state.c1, c2: state.c2, split: splitEl.value, plate: currentPlate() };
+  }
+
+  function colorName(hex) {
+    const p = PRESETS.find(([, , h]) => h.toLowerCase() === hex.toLowerCase());
+    return p ? p[0] : hex;
+  }
+
+  // ---------- controls ----------
+
+  // Layout dropdown, grouped by family
+  const families = [...new Set(LAYOUTS.map(l => l.family))];
+  families.forEach(f => {
+    const g = document.createElement("optgroup");
+    g.label = f;
+    LAYOUTS.filter(l => l.family === f).forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l.id;
+      opt.textContent = l.name;
+      g.appendChild(opt);
+    });
+    layoutEl.appendChild(g);
+  });
+  layoutEl.value = "original";
+
+  function buildSwatches(el, key, group) {
+    PRESETS.forEach(([value, label, hex]) => {
+      const lab = document.createElement("label");
+      lab.className = "swatch";
+      lab.style.setProperty("--dot", hex);
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = group;
+      input.value = hex;
+      const span = document.createElement("span");
+      span.textContent = label;
+      lab.append(input, span);
+      el.appendChild(lab);
+    });
+    const custom = document.createElement("label");
+    custom.className = "custom";
+    const picker = document.createElement("input");
+    picker.type = "color";
+    picker.setAttribute("aria-label", group === "frame" ? "Custom frame color" : "Custom second color");
+    const span = document.createElement("span");
+    span.textContent = "Custom";
+    custom.append(picker, span);
+    el.appendChild(custom);
+
+    const sync = () => {
+      el.querySelectorAll('input[type="radio"]').forEach(r => {
+        r.checked = r.value.toLowerCase() === state[key].toLowerCase();
+      });
+      picker.value = state[key];
+    };
+    el.querySelectorAll('input[type="radio"]').forEach(r =>
+      r.addEventListener("change", () => { state[key] = r.value; sync(); generate(); }));
+    picker.addEventListener("input", () => { state[key] = picker.value; sync(); generate(); });
+    sync();
+  }
+
+  buildSwatches(document.getElementById("swatches1"), "c1", "frame");
+  buildSwatches(document.getElementById("swatches2"), "c2", "frame2");
+
+  // ---------- render ----------
+
+  function generate() {
+    drawTag(ctx, canvas.width / UW, byId[layoutEl.value] || LAYOUTS[0], readData(), options());
+    statusEl.textContent = "";
   }
 
   let debounceId = null;
@@ -471,6 +980,8 @@
     clearTimeout(debounceId);
     debounceId = setTimeout(generate, 120);
   }
+
+  // ---------- download + logging ----------
 
   function makeThumbnail() {
     const w = 400;
@@ -485,14 +996,19 @@
   function logDownload() {
     if (!LOG_URL) return;
     try {
+      const o = options();
       const entry = {
-        frame: currentFrame(),
+        frame: colorName(o.c1),
         line1: fields.line1.value.trim(),
         line2: fields.line2.value.trim(),
         line3: fields.line3.value.trim(),
         line4: fields.line4.value.trim(),
         line5: fields.line5.value.trim(),
         line6: fields.line6.value.trim(),
+        layout: layoutEl.value,
+        colorStyle: o.split,
+        frame2: o.split === "none" ? "" : colorName(o.c2),
+        nameplate: o.plate,
       };
 
       // Skip repeat downloads of the same tag in one visit.
@@ -523,7 +1039,7 @@
   }
 
   function download() {
-    if (!ready) return;
+    generate();
     canvas.toBlob((blob) => {
       if (!blob) {
         statusEl.textContent = "Something went wrong making the file. Please try again.";
@@ -544,7 +1060,12 @@
   }
 
   downloadBtn.addEventListener("click", download);
-  frameInputs.forEach(el => el.addEventListener("change", generate));
+  layoutEl.addEventListener("change", generate);
+  splitEl.addEventListener("change", () => {
+    color2Set.hidden = splitEl.value === "none";
+    generate();
+  });
+  plateInputs.forEach(el => el.addEventListener("change", generate));
   Object.values(fields).forEach(el => el.addEventListener("input", scheduleGenerate));
 
   generate();
