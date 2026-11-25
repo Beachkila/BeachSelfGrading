@@ -240,7 +240,10 @@
     text-decoration: none;
   }
 
-  footer a:hover, footer a:focus-visible { text-decoration: underline; }
+  footer a:focus-visible { text-decoration: underline; }
+  @media (hover: hover) {
+    footer a:hover { text-decoration: underline; }
+  }
 
   .community {
     text-align: center;
@@ -272,12 +275,17 @@
     font-weight: bold;
     text-transform: none;
     text-decoration: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .community a.reddit-btn svg { width: 26px; height: 26px; fill: currentColor; flex: none; }
+  .community a.reddit-btn svg { width: 26px; height: 26px; fill: currentColor; flex: none; pointer-events: none; }
 
-  .community a.reddit-btn:hover,
-  .community a.reddit-btn:focus-visible { background: #e03d00; text-decoration: none; }
+  .community a.reddit-btn:focus-visible,
+  .community a.reddit-btn:active { background: #e03d00; }
+  @media (hover: hover) {
+    .community a.reddit-btn:hover { background: #e03d00; }
+  }
 
   @media (max-width: 640px) {
     main { padding: 0 12px 32px; }
